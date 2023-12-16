@@ -3,6 +3,8 @@
 #include <stdbool.h>
 #include <string.h>
 
+#define NUM_POSSIBLE_CHARS 128
+
 bool arrContains(char * charArr, char val) {
     int size = strlen(charArr);
 
@@ -55,9 +57,8 @@ int main() {
     }
 
     char c;
-    int numPossibleChars = 128;
-    char chars[128];
-    int counts[128];
+    char chars[NUM_POSSIBLE_CHARS];
+    int counts[NUM_POSSIBLE_CHARS];
     int ci = 0; 
 
     while(!feof(fptr)) {

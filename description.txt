@@ -1,0 +1,3 @@
+Take an image file, and find the most prevalent color and replace this
+with another color. You should also be able to do this with a whole batch
+of photos. Start with jpg files.

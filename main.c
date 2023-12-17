@@ -1,87 +1,85 @@
 #include <stdio.h>
-#include <stdlib.h>
-#include <stdbool.h>
-#include <string.h>
+#include<stdlib.h>
+#include <jpeglib.h>
 
-#define NUM_POSSIBLE_CHARS 128
-
-bool arrContains(char * charArr, char val) {
-    int size = strlen(charArr);
-
-    for(int i = 0; i < size; i++) {
-        if(charArr[i] == val) {
-            return true;
-        }
-    }
-
-    return false;
+void setPixelColor(unsigned char * pixel, int r, int g, int b) {
+    pixel[0] = r;
+    pixel[1] = g;
+    pixel[2] = b;
 }
 
-int findCharIndex(char * charArr, char val) {
-    int size = strlen(charArr);
+int main(int argc, char ** argv) {
 
-    for(int i = 0; i < size; i++) {
-        if(charArr[i] == val) {
-            return i;
-        }
+    printf("%s", argv[1]);
+
+    struct jpeg_decompress_struct cinfo;
+    struct jpeg_error_mgr jerr;
+
+    FILE* infile;
+    FILE* outfile;
+    JSAMPARRAY buffer;
+    int row_stride;
+
+    if((infile = fopen(argv[1], "rb")) == NULL) {
+        fprintf(stderr, "can't open %s\n", argv[1]);
+        return 1;
+    }
+    if ((outfile = fopen(argv[2], "wb")) == NULL) {
+        fprintf(stderr, "can't open %s\n", argv[2]);
+        return 1;
     }
 
-    return -1;
-}
+    //Decompress input image
+    cinfo.err = jpeg_std_error(&jerr);
+    jpeg_create_decompress(&cinfo);
 
-int findMaxIndex(int * intArr) {
-    int size = sizeof(intArr) / sizeof(intArr[0]);
+    jpeg_stdio_src(&cinfo, infile);
+    (void) jpeg_read_header(&cinfo, TRUE);
+    (void) jpeg_start_decompress(&cinfo);
 
-    int max = intArr[0];
-    int maxIndex = 0;
-    for(int i = 0; i < size; i++) {
-        if(intArr[i] > max) {
-            max = intArr[i];
-            maxIndex = i;
-        }
-    }
+    row_stride = cinfo.output_width * cinfo.output_components;
 
-    return maxIndex;
-}
+    buffer = (*cinfo.mem->alloc_sarray)((j_common_ptr) &cinfo, JPOOL_IMAGE, row_stride, 1);
 
-int main() {
+    // Create compression object
+    struct jpeg_compress_struct output_cinfo;
+    struct jpeg_error_mgr output_jerr;
 
-    FILE* fptr;
+    output_cinfo.err = jpeg_std_error(&output_jerr);
+    jpeg_create_compress(&output_cinfo);
 
-    fptr = fopen("description.txt", "r");
+    jpeg_stdio_dest(&output_cinfo, outfile);
 
-    if (fptr == NULL) {
-        printf("The file is not opened. The program will "
-              "now exit.");
-        exit(0);
-    }
+    output_cinfo.image_width = cinfo.output_width;
+    output_cinfo.image_height = cinfo.output_height;
+    output_cinfo.input_components = cinfo.output_components;
+    output_cinfo.in_color_space = cinfo.out_color_space;
 
-    char c;
-    char chars[NUM_POSSIBLE_CHARS];
-    int counts[NUM_POSSIBLE_CHARS];
-    int ci = 0; 
+    // printf("%d\n", cinfo.output_width);
+    // printf("%d\n", cinfo.output_height);
+    // printf("%d\n", cinfo.output_components);
+    // printf("%d\n", cinfo.out_color_space);
 
-    while(!feof(fptr)) {
-        c = fgetc(fptr);
+    jpeg_set_defaults(&output_cinfo);
 
-        if(!arrContains(chars, c)) {
-            chars[ci] = c;
-            counts[ci] = 1;
-            ci++;
-        }
-        else {
-            counts[findCharIndex(chars, c)]++;
+    jpeg_start_compress(&output_cinfo, TRUE);
+
+    while(cinfo.output_scanline < cinfo.output_height) {
+        (void) jpeg_read_scanlines(&cinfo, buffer, 1);
+        // put_scanline_someplace(buffer[0], row_stride);
+        for(int i = 0; i < row_stride; i += cinfo.output_components) {
+            setPixelColor(&(buffer[0][i]), 0, 0, 255);
         }
 
-        printf("%c", c);
+        (void)jpeg_write_scanlines(&output_cinfo, buffer, 1);
     }
 
-    int maxIndex = findMaxIndex(counts);
-    int mostFrequentCharacter = chars[maxIndex];
-    int numEncounters = counts[maxIndex];
+    jpeg_finish_compress(&output_cinfo);
 
-    printf("\n");
-    printf("The Most Frequent Char: %c, encountered %d times.", mostFrequentCharacter, numEncounters);
+    (void) jpeg_finish_decompress(&cinfo);
+    jpeg_destroy_decompress(&cinfo);
+
+    fclose(infile);
 
     return 0;
 }

@@ -1,6 +1,6 @@
 # floodfill
 
-*This library requires the library `libjpeg`*
+*This program requires the library `libjpeg`*
 
 **Build:**
 

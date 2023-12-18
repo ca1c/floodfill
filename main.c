@@ -16,6 +16,15 @@ void setPixelColor(unsigned char * pixel, int r, int g, int b) {
     pixel[2] = b;
 }
 
+bool colorsEquivalent(struct color structColor, unsigned char * buffColor) {
+    if((structColor.r == buffColor[0]) 
+    && (structColor.g == buffColor[1]) 
+    && (structColor.b == buffColor[2])) {
+        return true;
+    }
+    return false;
+}
+
 bool colorsContainsColor(struct color * colors, unsigned char * color, int colorsLength) {
     for(int i = 0; i < colorsLength; i++) {
         if((colors[i].r == color[0]) 
@@ -108,39 +117,50 @@ int main(int argc, char ** argv) {
     struct color *colorsArr = (struct color *)malloc(array_size * sizeof(struct color));
     int * colorsCount = (int *)malloc(array_size * sizeof(int));
     int j = 0;
+    int max = colorsCount[0];
+    int maxIndex = 0;
+    struct color mostCommonColor;
 
     while(cinfo.output_scanline < cinfo.output_height) {
         (void) jpeg_read_scanlines(&cinfo, buffer, 1);
         // put_scanline_someplace(buffer[0], row_stride);
 
         for(int i = 0; i < row_stride; i+= cinfo.output_components) {
-            // printf("%d\n", j);
+            // printf("color: %d, %d, %d\n", (&(buffer[0][i]))[0], (&(buffer[0][i]))[0], (&(buffer[0][i]))[0]);
             int colorIndex;
             if(!colorsContainsColor(colorsArr, &(buffer[0][i]), j)) {
                 colorsArr[j] = setColorsElement(colorsArr[j], &(buffer[0][i]));
+                colorsCount[j] = 1;
                 j++;
             }
             else if((colorIndex = findColorIndex(colorsArr, &(buffer[0][i]), j)) != -1) {
-                colorsCount[j]++;
+                colorsCount[colorIndex]++;
             }
         }
+    }
 
-        if(cinfo.output_scanline == cinfo.output_height - cinfo.output_scanline) {
-            int max = colorsCount[0];
-            int maxIndex = 0;
-            for(int i = 0; i < j; i++) {
-                if(colorsCount[i] > max) {
-                    max = colorsCount[i];
-                    maxIndex = i;
-                }
-            }
-
-            printf("most common color: %d, %d, %d", colorsArr[maxIndex].r, colorsArr[maxIndex].g, colorsArr[maxIndex].b);
+    for(int i = 0; i < j; i++) {
+        // printf("%d\n", colorsCount[i]);
+        if(colorsCount[i] > max) {
+            max = colorsCount[i];
+            maxIndex = i;
         }
-        
+    }
 
-        for(int i = 0; i < row_stride; i += cinfo.output_components) {
-            setPixelColor(&(buffer[0][i]), 0, 0, 255);
+    mostCommonColor.r = colorsArr[maxIndex].r;
+    mostCommonColor.g = colorsArr[maxIndex].g;
+    mostCommonColor.b = colorsArr[maxIndex].b;
+
+    printf("most common color: %d, %d, %d, %d times", mostCommonColor.r, mostCommonColor.g, mostCommonColor.b, max);
+
+    while(output_cinfo.next_scanline < output_cinfo.image_height) {
+        // printf("%d\n", sizeof(buffer[959][0]));
+        for(int i = 0; i < output_cinfo.image_width; i++) {
+            printf("%d\n", colorsEquivalent(mostCommonColor, &(buffer[0][i])));
+            if(colorsEquivalent(mostCommonColor, &(buffer[0][i]))) {
+                printf("ran\n");
+                setPixelColor(&(buffer[0][i]), 0, 0, 255);
+            }
         }
 
         (void)jpeg_write_scanlines(&output_cinfo, buffer, 1);

@@ -114,7 +114,7 @@ int main(int argc, char ** argv) {
         // put_scanline_someplace(buffer[0], row_stride);
 
         for(int i = 0; i < row_stride; i+= cinfo.output_components) {
-            printf("%d\n", j);
+            // printf("%d\n", j);
             int colorIndex;
             if(!colorsContainsColor(colorsArr, &(buffer[0][i]), j)) {
                 colorsArr[j] = setColorsElement(colorsArr[j], &(buffer[0][i]));
@@ -124,6 +124,20 @@ int main(int argc, char ** argv) {
                 colorsCount[j]++;
             }
         }
+
+        if(cinfo.output_scanline == cinfo.output_height - cinfo.output_scanline) {
+            int max = colorsCount[0];
+            int maxIndex = 0;
+            for(int i = 0; i < j; i++) {
+                if(colorsCount[i] > max) {
+                    max = colorsCount[i];
+                    maxIndex = i;
+                }
+            }
+
+            printf("most common color: %d, %d, %d", colorsArr[maxIndex].r, colorsArr[maxIndex].g, colorsArr[maxIndex].b);
+        }
+        
 
         for(int i = 0; i < row_stride; i += cinfo.output_components) {
             setPixelColor(&(buffer[0][i]), 0, 0, 255);

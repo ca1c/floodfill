@@ -1,0 +1,5 @@
+What I think I should change is my approach to the problem, instead of trying to work with the current decompression and compression
+to actually edit the pixels. I should do one round of decompressing the photo, then finding the most common color, then compress the photo
+back into its original state, then do a decompression of that photo and edit the photo that way, then recompress the photo.
+
+you can find the code for the second decompression in the file titled change every pixel in jpeg file to a specific color.

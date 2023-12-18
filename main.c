@@ -1,177 +1,140 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <jpeglib.h>
-#include <stdbool.h>
-#include <math.h>
 
-struct color {
-    unsigned char r;
-    unsigned char g;
-    unsigned char b;
-};
+#define MAX_COLORS 256
 
-void setPixelColor(unsigned char * pixel, int r, int g, int b) {
-    pixel[0] = r;
-    pixel[1] = g;
-    pixel[2] = b;
-}
+// store RGB values
+typedef struct {
+    int r, g, b;
+} RGB;
 
-bool colorsEquivalent(struct color structColor, unsigned char * buffColor) {
-    if((structColor.r == buffColor[0]) 
-    && (structColor.g == buffColor[1]) 
-    && (structColor.b == buffColor[2])) {
-        return true;
-    }
-    return false;
-}
+// find the most common color in the image
+RGB findMostCommonColor(JSAMPLE* image, int width, int height) {
+    int colorCount[MAX_COLORS][3] = {0};
 
-bool colorsContainsColor(struct color * colors, unsigned char * color, int colorsLength) {
-    for(int i = 0; i < colorsLength; i++) {
-        if((colors[i].r == color[0]) 
-        && (colors[i].g == color[1]) 
-        && (colors[i].b == color[2])) {
-            return true;
+    for (int y = 0; y < height; y++) {
+        for (int x = 0; x < width; x++) {
+            int index = y * width * 3 + x * 3;
+            colorCount[image[index]][0]++;
+            colorCount[image[index + 1]][1]++;
+            colorCount[image[index + 2]][2]++;
         }
     }
-    return false;
-}
 
-struct color setColorsElement(struct color currColor, unsigned char * color) {
-    // printf("%d, %d, %d\n", color[0], color[1], color[2]);
-    currColor.r = color[0];
-    currColor.g = color[1];
-    currColor.b = color[2];
+    int maxCount = 0;
+    RGB mostCommonColor = {0, 0, 0};
 
-    return currColor;
-}
-
-int findColorIndex(struct color * colors, unsigned char * color, int colorsLength) {
-    for(int i = 0; i < colorsLength; i++) {
-        if((colors[i].r == color[0]) 
-        && (colors[i].g == color[1]) 
-        && (colors[i].b == color[2])) {
-            return i;
+    for (int i = 0; i < MAX_COLORS; i++) {
+        if (colorCount[i][0] + colorCount[i][1] + colorCount[i][2] > maxCount) {
+            maxCount = colorCount[i][0] + colorCount[i][1] + colorCount[i][2];
+            mostCommonColor.r = i;
+            mostCommonColor.g = i;
+            mostCommonColor.b = i;
         }
     }
-    return -1;
+
+    return mostCommonColor;
 }
 
-int main(int argc, char ** argv) {
+// replace the most common color with a new color
+void replaceColor(JSAMPLE* image, int width, int height, RGB oldColor, RGB newColor) {
+    for (int y = 0; y < height; y++) {
+        for (int x = 0; x < width; x++) {
+            int index = y * width * 3 + x * 3;
+            if (image[index] == oldColor.r && image[index + 1] == oldColor.g && image[index + 2] == oldColor.b) {
+                image[index] = newColor.r;
+                image[index + 1] = newColor.g;
+                image[index + 2] = newColor.b;
+            }
+        }
+    }
+}
 
-    printf("%s", argv[1]);
+int main(int argc, char *argv[]) {
+    if (argc != 4) {
+        fprintf(stderr, "Usage: %s <input.jpg> <output.jpg> <newColor>\n", argv[0]);
+        exit(EXIT_FAILURE);
+    }
+
+    const char *inputFileName = argv[1];
+    const char *outputFileName = argv[2];
+    RGB newColor;
+    sscanf(argv[3], "%x", &newColor.r); // Assuming newColor is given in hexadecimal format
+
+    FILE *infile = fopen(inputFileName, "rb");
+    if (!infile) {
+        fprintf(stderr, "Error opening input file\n");
+        exit(EXIT_FAILURE);
+    }
 
     struct jpeg_decompress_struct cinfo;
     struct jpeg_error_mgr jerr;
 
-    FILE* infile;
-    FILE* outfile;
-    JSAMPARRAY buffer;
-    int row_stride;
-
-    if((infile = fopen(argv[1], "rb")) == NULL) {
-        fprintf(stderr, "can't open %s\n", argv[1]);
-        return 1;
-    }
-    if ((outfile = fopen(argv[2], "wb")) == NULL) {
-        fprintf(stderr, "can't open %s\n", argv[2]);
-        return 1;
-    }
-
-    //Decompress input image
     cinfo.err = jpeg_std_error(&jerr);
     jpeg_create_decompress(&cinfo);
 
     jpeg_stdio_src(&cinfo, infile);
-    (void) jpeg_read_header(&cinfo, TRUE);
-    (void) jpeg_start_decompress(&cinfo);
+    jpeg_read_header(&cinfo, TRUE);
+    jpeg_start_decompress(&cinfo);
 
-    row_stride = cinfo.output_width * cinfo.output_components;
+    int width = cinfo.output_width;
+    int height = cinfo.output_height;
+    int numChannels = cinfo.output_components;
+    int rowStride = width * numChannels;
+    JSAMPLE *image = (JSAMPLE *)malloc(rowStride * height);
 
-    buffer = (*cinfo.mem->alloc_sarray)((j_common_ptr) &cinfo, JPOOL_IMAGE, row_stride, 1);
-
-    // Create compression object
-    struct jpeg_compress_struct output_cinfo;
-    struct jpeg_error_mgr output_jerr;
-
-    output_cinfo.err = jpeg_std_error(&output_jerr);
-    jpeg_create_compress(&output_cinfo);
-
-    jpeg_stdio_dest(&output_cinfo, outfile);
-
-    output_cinfo.image_width = cinfo.output_width;
-    output_cinfo.image_height = cinfo.output_height;
-    output_cinfo.input_components = cinfo.output_components;
-    output_cinfo.in_color_space = cinfo.out_color_space;
-
-    // printf("%d\n", cinfo.output_width);
-    // printf("%d\n", cinfo.output_height);
-    // printf("%d\n", cinfo.output_components);
-    // printf("%d\n", cinfo.out_color_space);
-
-    jpeg_set_defaults(&output_cinfo);
-
-    jpeg_start_compress(&output_cinfo, TRUE);
-
-    size_t array_size = 255 * 255 * 255;
-
-    struct color *colorsArr = (struct color *)malloc(array_size * sizeof(struct color));
-    int * colorsCount = (int *)malloc(array_size * sizeof(int));
-    int j = 0;
-    int max = colorsCount[0];
-    int maxIndex = 0;
-    struct color mostCommonColor;
-
-    while(cinfo.output_scanline < cinfo.output_height) {
-        (void) jpeg_read_scanlines(&cinfo, buffer, 1);
-        // put_scanline_someplace(buffer[0], row_stride);
-
-        for(int i = 0; i < row_stride; i+= cinfo.output_components) {
-            // printf("color: %d, %d, %d\n", (&(buffer[0][i]))[0], (&(buffer[0][i]))[0], (&(buffer[0][i]))[0]);
-            int colorIndex;
-            if(!colorsContainsColor(colorsArr, &(buffer[0][i]), j)) {
-                colorsArr[j] = setColorsElement(colorsArr[j], &(buffer[0][i]));
-                colorsCount[j] = 1;
-                j++;
-            }
-            else if((colorIndex = findColorIndex(colorsArr, &(buffer[0][i]), j)) != -1) {
-                colorsCount[colorIndex]++;
-            }
-        }
+    JSAMPROW row_pointer[1];
+    while (cinfo.output_scanline < cinfo.output_height) {
+        row_pointer[0] = &image[(cinfo.output_scanline) * rowStride];
+        jpeg_read_scanlines(&cinfo, row_pointer, 1);
     }
 
-    for(int i = 0; i < j; i++) {
-        // printf("%d\n", colorsCount[i]);
-        if(colorsCount[i] > max) {
-            max = colorsCount[i];
-            maxIndex = i;
-        }
-    }
-
-    mostCommonColor.r = colorsArr[maxIndex].r;
-    mostCommonColor.g = colorsArr[maxIndex].g;
-    mostCommonColor.b = colorsArr[maxIndex].b;
-
-    printf("most common color: %d, %d, %d, %d times", mostCommonColor.r, mostCommonColor.g, mostCommonColor.b, max);
-
-    while(output_cinfo.next_scanline < output_cinfo.image_height) {
-        // printf("%d\n", sizeof(buffer[959][0]));
-        for(int i = 0; i < output_cinfo.image_width; i++) {
-            printf("%d\n", colorsEquivalent(mostCommonColor, &(buffer[0][i])));
-            if(colorsEquivalent(mostCommonColor, &(buffer[0][i]))) {
-                printf("ran\n");
-                setPixelColor(&(buffer[0][i]), 0, 0, 255);
-            }
-        }
-
-        (void)jpeg_write_scanlines(&output_cinfo, buffer, 1);
-    }
-
-    jpeg_finish_compress(&output_cinfo);
-
-    (void) jpeg_finish_decompress(&cinfo);
+    jpeg_finish_decompress(&cinfo);
     jpeg_destroy_decompress(&cinfo);
-
     fclose(infile);
+
+    // Find the most common color in the image
+    RGB mostCommonColor = findMostCommonColor(image, width, height);
+
+    // Replace the most common color with the new color
+    replaceColor(image, width, height, mostCommonColor, newColor);
+
+    // Write the modified image to a new file
+    FILE *outfile = fopen(outputFileName, "wb");
+    if (!outfile) {
+        fprintf(stderr, "Error opening output file\n");
+        free(image);
+        exit(EXIT_FAILURE);
+    }
+
+    struct jpeg_compress_struct cinfo_out;
+    struct jpeg_error_mgr jerr_out;
+
+    cinfo_out.err = jpeg_std_error(&jerr_out);
+    jpeg_create_compress(&cinfo_out);
+
+    jpeg_stdio_dest(&cinfo_out, outfile);
+
+    cinfo_out.image_width = width;
+    cinfo_out.image_height = height;
+    cinfo_out.input_components = numChannels;
+    cinfo_out.in_color_space = JCS_RGB;
+
+    jpeg_set_defaults(&cinfo_out);
+    jpeg_set_quality(&cinfo_out, 75, TRUE);
+    jpeg_start_compress(&cinfo_out, TRUE);
+
+    while (cinfo_out.next_scanline < cinfo_out.image_height) {
+        row_pointer[0] = &image[cinfo_out.next_scanline * rowStride];
+        jpeg_write_scanlines(&cinfo_out, row_pointer, 1);
+    }
+
+    jpeg_finish_compress(&cinfo_out);
+    jpeg_destroy_compress(&cinfo_out);
+    fclose(outfile);
+
+    free(image);
 
     return 0;
 }

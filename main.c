@@ -1,38 +1,69 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <jpeglib.h>
-
-#define MAX_COLORS 256
 
 // store RGB values
 typedef struct {
-    int r, g, b;
+    unsigned char r, g, b;
 } RGB;
+
+bool colorsContainsColor(RGB * colorsArr, RGB color, int colorsArrSize) {
+    for(int i = 0; i < colorsArrSize; i++) {
+        if(colorsArr[i].r == color.r && colorsArr[i].g == color.g && colorsArr[i].b == color.b) {
+            return true;
+        }
+    }
+    return false;
+}
+
+int getColorIndex(RGB * colorsArr, RGB color, int colorsArrSize) {
+    for(int i = 0; i < colorsArrSize; i++) {
+        if(colorsArr[i].r == color.r && colorsArr[i].g == color.g && colorsArr[i].b == color.b) {
+            return i;
+        }
+    }
+    return -1;
+}
 
 // find the most common color in the image
 RGB findMostCommonColor(JSAMPLE* image, int width, int height) {
-    int colorCount[MAX_COLORS][3] = {0};
+    size_t array_size = 255 * 255 * 255;
+
+    int j = 0;
+    RGB * colorsArr = (RGB *)malloc(array_size * sizeof(RGB));
+    int * colorsCount = (int *)malloc(array_size * sizeof(int));
 
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
             int index = y * width * 3 + x * 3;
-            colorCount[image[index]][0]++;
-            colorCount[image[index + 1]][1]++;
-            colorCount[image[index + 2]][2]++;
+            RGB color = {image[index], image[index + 1], image[index + 2]};
+            // printf("[%d, %d, %d]\n", color.r, color.g, color.b);
+            if(colorsContainsColor(colorsArr, color, j)) {
+                colorsCount[getColorIndex(colorsArr, color, j)]++;
+            }
+            else {
+                colorsArr[j] = color;
+                colorsCount[j] = 1;
+                j++;
+            }
         }
     }
 
     int maxCount = 0;
-    RGB mostCommonColor = {0, 0, 0};
+    int maxIndex = 0;
+    RGB mostCommonColor;
 
-    for (int i = 0; i < MAX_COLORS; i++) {
-        if (colorCount[i][0] + colorCount[i][1] + colorCount[i][2] > maxCount) {
-            maxCount = colorCount[i][0] + colorCount[i][1] + colorCount[i][2];
-            mostCommonColor.r = i;
-            mostCommonColor.g = i;
-            mostCommonColor.b = i;
+    for (int i = 0; i < j; i++) {
+        if (colorsCount[i] > maxCount) {
+            maxCount = colorsCount[i];
+            maxIndex = i;
         }
     }
+
+    mostCommonColor.r = colorsArr[maxIndex].r;
+    mostCommonColor.g = colorsArr[maxIndex].g;
+    mostCommonColor.b = colorsArr[maxIndex].b;
 
     return mostCommonColor;
 }
@@ -67,6 +98,9 @@ int main(int argc, char *argv[]) {
     RGB newColor;
     sscanf(argv[3], "%x", &newColor.r); // Assuming newColor is given in hexadecimal format
 
+    printf("Doing floodfill for image %s\n", argv[1]);
+    printf("New color RGB: %d, %d, %d\n", newColor.r, newColor.g, newColor.b);
+
     FILE *infile = fopen(inputFileName, "rb");
     if (!infile) {
         fprintf(stderr, "Error opening input file\n");
@@ -99,11 +133,18 @@ int main(int argc, char *argv[]) {
     jpeg_destroy_decompress(&cinfo);
     fclose(infile);
 
+    printf("Finding most common color...\n");
+
     // Find the most common color in the image
     RGB mostCommonColor = findMostCommonColor(image, width, height);
+    printf("Most common color RGB: %d, %d, %d\n", mostCommonColor.r, mostCommonColor.g, mostCommonColor.b);
+
+    printf("Replacing most common color with new color...\n");
 
     // Replace the most common color with the new color
     replaceColor(image, width, height, mostCommonColor, newColor);
+
+    printf("Compressing...\n");
 
     // Write the modified image to a new file
     FILE *outfile = fopen(outputFileName, "wb");
@@ -140,6 +181,8 @@ int main(int argc, char *argv[]) {
     fclose(outfile);
 
     free(image);
+
+    printf("Done! output filename: %s\n", argv[2]);
 
     return 0;
 }

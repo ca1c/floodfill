@@ -41,6 +41,11 @@ RGB findMostCommonColor(JSAMPLE* image, int width, int height) {
 void replaceColor(JSAMPLE* image, int width, int height, RGB oldColor, RGB newColor) {
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
+            // Since image is a 1 dimensional array, finding the specific pixel requires some math
+            // y * width gives the current row of the image if each pixel only had one value
+            // since each pixel has three values for rgb we have to multiply this by 3
+            // then to get the current pixel in that row, add x for the single pixel column
+            // then multiply by 3 because of the 3 values for each pixel rgb
             int index = y * width * 3 + x * 3;
             if (image[index] == oldColor.r && image[index + 1] == oldColor.g && image[index + 2] == oldColor.b) {
                 image[index] = newColor.r;
